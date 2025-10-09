@@ -64,42 +64,51 @@ spec:
             failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
           {{- end }}
           env:
-            # USER
+            # POSTGRES_USER precedence: secret (explicit key) > value > default "postgres"
+            {{- if and .Values.auth.existingSecret .Values.auth.superuser.secretKey }}
             - name: POSTGRES_USER
               valueFrom:
-                {{- if and .Values.auth.existingSecret .Values.auth.superuser.secretKey }}
                 secretKeyRef:
                   name: {{ .Values.auth.existingSecret }}
                   key: {{ .Values.auth.superuser.secretKey }}
-                {{- else }}
-                secretKeyRef:
-                  name: {{ default (include "htpg.fullname" .) .Values.auth.existingSecret | quote }}
-                  key: POSTGRES_USER
-                {{- end }}
-            # PASSWORD
+            {{- else if .Values.auth.superuser.value }}
+            - name: POSTGRES_USER
+              value: {{ .Values.auth.superuser.value | quote }}
+            {{- else }}
+            - name: POSTGRES_USER
+              value: "postgres"
+            {{- end }}
+
+            # POSTGRES_PASSWORD precedence: secret (explicit key) > value
+            {{- if and .Values.auth.existingSecret .Values.auth.superuserPassword.secretKey }}
             - name: POSTGRES_PASSWORD
               valueFrom:
-                {{- if and .Values.auth.existingSecret .Values.auth.superuserPassword.secretKey }}
                 secretKeyRef:
                   name: {{ .Values.auth.existingSecret }}
                   key: {{ .Values.auth.superuserPassword.secretKey }}
-                {{- else }}
-                secretKeyRef:
-                  name: {{ default (include "htpg.fullname" .) .Values.auth.existingSecret | quote }}
-                  key: POSTGRES_PASSWORD
-                {{- end }}
-            # DB NAME (optional)
+            {{- else if .Values.auth.superuserPassword.value }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.auth.superuserPassword.value | quote }}
+            {{- else }}
+            - name: POSTGRES_PASSWORD
+              value: ""
+            {{- end }}
+
+            # POSTGRES_DB precedence: secret (explicit key) > value > default "postgres"
+            {{- if and .Values.auth.existingSecret .Values.auth.database.secretKey }}
             - name: POSTGRES_DB
               valueFrom:
-                {{- if and .Values.auth.existingSecret .Values.auth.database.secretKey }}
                 secretKeyRef:
                   name: {{ .Values.auth.existingSecret }}
                   key: {{ .Values.auth.database.secretKey }}
-                {{- else }}
-                secretKeyRef:
-                  name: {{ default (include "htpg.fullname" .) .Values.auth.existingSecret | quote }}
-                  key: POSTGRES_DB
-                {{- end }}
+            {{- else if .Values.auth.database.value }}
+            - name: POSTGRES_DB
+              value: {{ .Values.auth.database.value | quote }}
+            {{- else }}
+            - name: POSTGRES_DB
+              value: "postgres"
+            {{- end }}
+
             - name: PGDATA
               value: {{ printf "%s/data" .Values.storage.dataMountPath | quote }}
             {{- range .Values.env }}
