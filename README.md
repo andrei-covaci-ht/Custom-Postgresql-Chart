@@ -1,4 +1,4 @@
-# ht-postgresql
+# custom-postgresql-chart
 
 Single‑pod PostgreSQL Helm chart for DEV environments. No operators, no CRDs, no cluster constructs — just a clean StatefulSet + Service, PVC, optional init scripts, optional metrics.
 
