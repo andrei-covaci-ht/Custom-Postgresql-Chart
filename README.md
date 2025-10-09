@@ -27,18 +27,6 @@ Single‑pod PostgreSQL Helm chart for DEV environments. No operators, no CRDs, 
 
 ---
 
-## Quick start
-
-### Helm
-```bash
-# default (neutral) install
-helm upgrade --install pg ./ht-postgresql -n mock-t1
-
-# install with your environment overrides
-helm upgrade --install pg ./ht-postgresql -n mock-t1 -f values-dev.yaml
-```
----
-
 ## Configuration
 Below is a concise overview of frequently used values. See `values.yaml` for the full list.
 
