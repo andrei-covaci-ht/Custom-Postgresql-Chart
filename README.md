@@ -60,8 +60,8 @@ Provide SQL (or shell) files executed on first run. Files are projected to `/doc
 ```yaml
 initdbScripts:
   01-init.sql: |
-    CREATE DATABASE t1_curator;
-    CREATE DATABASE t1_mailservice;
+    CREATE DATABASE curdb;
+    CREATE DATABASE mailservice;
     # ... add your DB list here ...
 ```
 You may also mount an extra ConfigMap with scripts:
@@ -183,9 +183,9 @@ auth:
 
 initdbScripts:
   01-init.sql: |
-    CREATE DATABASE t1_curator;
-    CREATE DATABASE t1_mailservice;
-    CREATE DATABASE t1_pr_broadway;
+    CREATE DATABASE curdb;
+    CREATE DATABASE mailservice;
+    CREATE DATABASE wayforpay;
 
 metrics:
   enabled: true
@@ -193,10 +193,10 @@ metrics:
     enabled: true
 
 nodeSelector:
-  node.ht-services.net/role: database
+  node.demo.net/role: database
 
 tolerations:
-  - key: node.ht-services.net/role
+  - key: node.demo.net/role
     operator: Equal
     value: database
     effect: NoSchedule
@@ -210,7 +210,7 @@ storage:
 
 ## Uninstall
 ```bash
-helm uninstall pg -n mock-t1
+helm uninstall pg -n namespace-1
 ```
 
 ---
