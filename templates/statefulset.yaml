@@ -122,6 +122,8 @@ spec:
           volumeMounts:
             - name: data
               mountPath: {{ .Values.storage.dataMountPath }}
+            - name: run
+              mountPath: /var/run/postgresql
             {{- if .Values.initdbScripts }}
             - name: initdb
               mountPath: /docker-entrypoint-initdb.d
@@ -165,6 +167,8 @@ spec:
               containerPort: {{ .Values.metrics.service.port }}
         {{- end }}
       volumes:
+        - name: run
+          emptyDir: {}
         {{- if .Values.storage.existingClaim }}
         - name: data
           persistentVolumeClaim:
