@@ -1,0 +1,13 @@
+apiVersion: v2
+name: ht-postgresql
+description: Single-pod PostgreSQL for DEV (no operators, no CRDs)
+type: application
+version: 0.1.0
+appVersion: "15.5"
+kubeVersion: ">=1.22.0-0"
+keywords:
+  - postgres
+  - postgresql
+  - database
+maintainers:
+  - name: Andrei Covaci

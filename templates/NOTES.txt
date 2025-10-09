@@ -1,0 +1,6 @@
+PostgreSQL service: {{ .Values.service.type }} {{ include "htpg.fullname" . }}:{{ .Values.service.port }}
+To check:
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+
+If you used existingSecret, keys should exist:
+  POSTGRES_PASSWORD (+ optional POSTGRES_USER, POSTGRES_DB)

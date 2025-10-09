@@ -1,0 +1,202 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "htpg.fullname" . }}
+  labels:
+    {{- include "htpg.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "htpg.fullname" . }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "htpg.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "htpg.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}{{ toYaml . | nindent 8 }}{{ end }}
+      annotations:
+        checksum/initdb: {{ include "htpg.initdbScriptsChecksum" . | quote }}
+        {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{ end }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}
+      containers:
+        - name: postgres
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: tcp-postgres
+              containerPort: 5432
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - >
+                  pg_isready -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -h 127.0.0.1 -p 5432
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            successThreshold: {{ .Values.probes.readiness.successThreshold }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - >
+                  pg_isready -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -h 127.0.0.1 -p 5432
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          env:
+            # USER
+            - name: POSTGRES_USER
+              valueFrom:
+                {{- if and .Values.auth.existingSecret .Values.auth.superuser.secretKey }}
+                secretKeyRef:
+                  name: {{ .Values.auth.existingSecret }}
+                  key: {{ .Values.auth.superuser.secretKey }}
+                {{- else }}
+                secretKeyRef:
+                  name: {{ default (include "htpg.fullname" .) .Values.auth.existingSecret | quote }}
+                  key: POSTGRES_USER
+                {{- end }}
+            # PASSWORD
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                {{- if and .Values.auth.existingSecret .Values.auth.superuserPassword.secretKey }}
+                secretKeyRef:
+                  name: {{ .Values.auth.existingSecret }}
+                  key: {{ .Values.auth.superuserPassword.secretKey }}
+                {{- else }}
+                secretKeyRef:
+                  name: {{ default (include "htpg.fullname" .) .Values.auth.existingSecret | quote }}
+                  key: POSTGRES_PASSWORD
+                {{- end }}
+            # DB NAME (optional)
+            - name: POSTGRES_DB
+              valueFrom:
+                {{- if and .Values.auth.existingSecret .Values.auth.database.secretKey }}
+                secretKeyRef:
+                  name: {{ .Values.auth.existingSecret }}
+                  key: {{ .Values.auth.database.secretKey }}
+                {{- else }}
+                secretKeyRef:
+                  name: {{ default (include "htpg.fullname" .) .Values.auth.existingSecret | quote }}
+                  key: POSTGRES_DB
+                {{- end }}
+            - name: PGDATA
+              value: {{ printf "%s/data" .Values.storage.dataMountPath | quote }}
+            {{- range .Values.env }}
+            - {{ toYaml . | nindent 14 | trim }}
+            {{- end }}
+          envFrom:
+            {{- range .Values.extraEnvSecrets }}
+            - secretRef:
+                name: {{ . | quote }}
+            {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.storage.dataMountPath }}
+            {{- if .Values.initdbScripts }}
+            - name: initdb
+              mountPath: /docker-entrypoint-initdb.d
+            {{- end }}
+            {{- if .Values.extraScriptsConfigMap }}
+            - name: extra-scripts
+              mountPath: /docker-entrypoint-initdb.d/extra
+            {{- end }}
+            {{- range .Values.extraSecrets }}
+            - name: extrasecret-{{ .name }}
+              mountPath: {{ required "extraSecrets[].mountPath required" .mountPath }}
+              readOnly: true
+            {{- end }}
+            {{- range .Values.extraConfigs }}
+            - name: extraconfig-{{ .name }}
+              mountPath: {{ required "extraConfigs[].mountPath required" .mountPath }}
+              readOnly: true
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+        {{- if .Values.metrics.enabled }}
+        - name: postgres-exporter
+          image: "{{ .Values.metrics.image.registry }}/{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
+          imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
+          env:
+            {{- if and .Values.metrics.datasource.secret.name .Values.metrics.datasource.secret.key }}
+            - name: DATA_SOURCE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.metrics.datasource.secret.name }}
+                  key: {{ .Values.metrics.datasource.secret.key }}
+            {{- else if .Values.metrics.datasource.dsn }}
+            - name: DATA_SOURCE_NAME
+              value: {{ .Values.metrics.datasource.dsn | quote }}
+            {{- else }}
+            - name: DATA_SOURCE_NAME
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@127.0.0.1:5432/$(POSTGRES_DB)?sslmode=disable"
+            {{- end }}
+          ports:
+            - name: http-metrics
+              containerPort: {{ .Values.metrics.service.port }}
+        {{- end }}
+      volumes:
+        {{- if .Values.storage.existingClaim }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Values.storage.existingClaim }}
+        {{- end }}
+        {{- if .Values.initdbScripts }}
+        - name: initdb
+          configMap:
+            name: {{ include "htpg.fullname" . }}-initdb
+        {{- end }}
+        {{- if .Values.extraScriptsConfigMap }}
+        - name: extra-scripts
+          configMap:
+            name: {{ .Values.extraScriptsConfigMap }}
+        {{- end }}
+        {{- range .Values.extraSecrets }}
+        - name: extrasecret-{{ .name }}
+          secret:
+            secretName: {{ .name }}
+            {{- if .defaultMode }} defaultMode: {{ .defaultMode }} {{- end }}
+        {{- end }}
+        {{- range .Values.extraConfigs }}
+        - name: extraconfig-{{ .name }}
+          configMap:
+            name: {{ .name }}
+            {{- if .defaultMode }} defaultMode: {{ .defaultMode }} {{- end }}
+        {{- end }}
+  {{- if not .Values.storage.existingClaim }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        annotations:
+          {{- toYaml .Values.storage.annotations | nindent 10 }}
+        labels:
+          {{- toYaml .Values.storage.labels | nindent 10 }}
+      spec:
+        accessModes: {{ toYaml .Values.storage.accessModes | nindent 10 }}
+        {{- if .Values.storage.className }}
+        storageClassName: {{ .Values.storage.className }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.storage.requestedSize }}
+  {{- end }}

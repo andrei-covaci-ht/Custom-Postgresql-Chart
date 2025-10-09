@@ -1,0 +1,13 @@
+{{- if .Values.initdbScripts }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "htpg.fullname" . }}-initdb
+  labels:
+    {{- include "htpg.labels" . | nindent 4 }}
+data:
+{{- range $fname, $content := .Values.initdbScripts }}
+  {{ $fname }}: |
+{{ $content | indent 4 }}
+{{- end }}
+{{- end }}
