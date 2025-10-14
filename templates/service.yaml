@@ -4,19 +4,21 @@ metadata:
   name: {{ include "htpg.fullname" . }}
   labels:
     {{- include "htpg.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
   annotations:
-    {{- toYaml .Values.service.annotations | nindent 4 }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   type: {{ .Values.service.type }}
   ports:
     - port: {{ .Values.service.port }}
-      targetPort: 5432
+      targetPort: tcp-postgres
+      protocol: TCP
       name: tcp-postgres
   selector:
     {{- include "htpg.selectorLabels" . | nindent 4 }}
-    app.kubernetes.io/component: primary
 
-{{- if .Values.metrics.enabled }}
+{{- if .Values.service.external.enabled }}
 ---
 apiVersion: v1
 kind: Service
@@ -24,16 +26,25 @@ metadata:
   name: {{ include "htpg.fullname" . }}-external
   labels:
     {{- include "htpg.labels" . | nindent 4 }}
+    {{- with .Values.service.external.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.service.external.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
-  type: LoadBalancer
+  type: {{ .Values.service.external.type }}
   ports:
     - name: tcp-postgres
-      port: 5432
-      targetPort: 5432
+      port: {{ .Values.service.external.port }}
+      targetPort: tcp-postgres
+      protocol: TCP
   selector:
-    app.kubernetes.io/instance: {{ include "htpg.fullname" . }}
-    app.kubernetes.io/name: postgresql
-    app.kubernetes.io/component: primary
+    {{- include "htpg.selectorLabels" . | nindent 4 }}
+{{- end }}
+
+{{- if .Values.metrics.enabled }}
 ---
 apiVersion: v1
 kind: Service
@@ -53,6 +64,7 @@ spec:
     - name: http-metrics
       port: {{ .Values.metrics.service.port }}
       targetPort: http-metrics
+      protocol: TCP
 
 {{- if .Values.metrics.serviceMonitor.enabled }}
 ---
