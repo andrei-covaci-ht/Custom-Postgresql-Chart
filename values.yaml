@@ -11,6 +11,12 @@ service:
   port: 5432
   annotations: {}
   labels: {}
+  external:
+    enabled: false
+    type: LoadBalancer
+    port: 5432
+    annotations: {}
+    labels: {}
 
 resources:
   requests:
@@ -46,7 +52,7 @@ auth:
   # If existingSecret is not set, you can create a secret from values (below).
   createSecret: false
   superuser:
-    # superuser name (if empty — postgres)
+    # superuser name (if empty – postgres)
     value: ""
     secretKey: ""  # if taking the name from existingSecret
   superuserPassword:
@@ -120,4 +126,4 @@ storage:
   accessModes: ["ReadWriteOnce"]
   annotations: {}
   labels: {}
-  dataMountPath: "/var/lib/postgresql/data"  # mount path inside the container (set to /bitnami/postgresql for Bitnami PVC reuse)
+  dataMountPath: "/var/lib/postgresql/data"  # mount path inside the container
