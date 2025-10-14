@@ -1,93 +1,129 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ include "htpg.fullname" . }}
-  labels:
-    {{- include "htpg.labels" . | nindent 4 }}
-  {{- with .Values.service.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
-spec:
-  type: {{ .Values.service.type }}
-  ports:
-    - port: {{ .Values.service.port }}
-      targetPort: tcp-postgres
-      protocol: TCP
-      name: tcp-postgres
-  selector:
-    {{- include "htpg.selectorLabels" . | nindent 4 }}
+image:
+  repository: postgres
+  tag: "15.5"
+  pullPolicy: IfNotPresent
 
-{{- if .Values.service.external.enabled }}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ include "htpg.fullname" . }}-external
-  labels:
-    {{- include "htpg.labels" . | nindent 4 }}
-    {{- with .Values.service.external.labels }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
-  {{- with .Values.service.external.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
-spec:
-  type: {{ .Values.service.external.type }}
-  ports:
-    - name: tcp-postgres
-      port: {{ .Values.service.external.port }}
-      targetPort: tcp-postgres
-      protocol: TCP
-  selector:
-    {{- include "htpg.selectorLabels" . | nindent 4 }}
-{{- end }}
+nameOverride: ""
+fullnameOverride: ""
 
-{{- if .Values.metrics.enabled }}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ include "htpg.fullname" . }}-metrics
-  labels:
-    {{- include "htpg.labels" . | nindent 4 }}
-  {{- with .Values.metrics.service.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
-spec:
+service:
   type: ClusterIP
-  selector:
-    {{- include "htpg.selectorLabels" . | nindent 4 }}
-  ports:
-    - name: http-metrics
-      port: {{ .Values.metrics.service.port }}
-      targetPort: http-metrics
-      protocol: TCP
+  port: 5432
+  annotations: {}
+  labels: {}
+  external:
+    enabled: false
+    type: LoadBalancer
+    port: 5432
+    annotations: {}
+    labels: {}
 
-{{- if .Values.metrics.serviceMonitor.enabled }}
----
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: {{ include "htpg.fullname" . }}
-  {{- if .Values.metrics.serviceMonitor.namespace }}
-  namespace: {{ .Values.metrics.serviceMonitor.namespace }}
-  {{- end }}
-  labels:
-    {{- toYaml .Values.metrics.serviceMonitor.labels | nindent 4 }}
-spec:
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: {{ include "htpg.name" . }}
-      app.kubernetes.io/instance: {{ .Release.Name }}
-  endpoints:
-    - port: http-metrics
-      interval: {{ .Values.metrics.serviceMonitor.interval }}
-      scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout }}
-  namespaceSelector:
-    matchNames:
-      - {{ .Release.Namespace }}
-{{- end }}
-{{- end }}
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  fsGroup: 999
+  supplementalGroups: [999]
+
+securityContext:
+  allowPrivilegeEscalation: false
+  privileged: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 999
+  runAsGroup: 999
+  capabilities:
+    drop: ["ALL"]
+
+auth:
+  # Specify the name of an existing secret (recommended).
+  # The secret must contain at least the key: POSTGRES_PASSWORD
+  existingSecret: ""
+  # If existingSecret is not set, you can create a secret from values (below).
+  createSecret: false
+  superuser:
+    # superuser name (if empty – postgres)
+    value: ""
+    secretKey: ""  # if taking the name from existingSecret
+  superuserPassword:
+    value: ""      # password in plain text (used only if createSecret=true)
+    secretKey: ""  # key in existingSecret
+  database:
+    value: "postgres"  # initial database name (optional)
+    secretKey: ""       # key in existingSecret
+
+env: []  # additional env variables in the container
+extraEnvSecrets: []  # list of secret names to mount envFrom
+
+# Initialization scripts, mounted at /docker-entrypoint-initdb.d
+initdbScripts: {}
+# example:
+# initdbScripts:
+#   01-init.sql: |
+#     CREATE DATABASE t1_curator;
+#     CREATE DATABASE t1_mailservice;
+
+# You can provide a ready ConfigMap with scripts (*.sql|*.sh)
+extraScriptsConfigMap: ""
+
+# Additional secrets/configs as files
+extraSecrets: []   # [{ name: mysecret, mountPath: /mysecretfolder, defaultMode: 0440 }]
+extraConfigs: []   # [{ name: mycfg, mountPath: /myconfigfolder, defaultMode: 0440 }]
+
+metrics:
+  enabled: false
+  image:
+    registry: quay.io
+    repository: prometheuscommunity/postgres-exporter
+    tag: v0.15.0
+    pullPolicy: IfNotPresent
+  # Data Source Name (DSN). If empty, exporter can build it from POSTGRES_* env vars.
+  datasource:
+    dsn: ""                # e.g. postgresql://user:pass@127.0.0.1:5432/postgres?sslmode=disable
+    secret:
+      name: ""             # optional: reference a secret with DSN
+      key: ""              # secret key that contains DSN
+  service:
+    port: 9187
+    annotations: {}
+    labels: {}
+  serviceMonitor:
+    enabled: false
+    namespace: ""          # leave empty to use the same namespace
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+
+probes:
+  readiness:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 6
+  liveness:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 6
+
+storage:
+  existingClaim: ""   # set to use an existing PVC instead of creating a new one
+  requestedSize: 10Gi
+  className: ""           # for example: standard
+  accessModes: ["ReadWriteOnce"]
+  annotations: {}
+  labels: {}
+  dataMountPath: "/var/lib/postgresql/data"  # mount path inside the container
