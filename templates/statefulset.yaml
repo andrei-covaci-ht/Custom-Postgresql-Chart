@@ -80,15 +80,14 @@ spec:
           {{- end }}
           env:
             - name: POSTGRES_USER
-              value: postgres
+              value: {{ .Values.auth.superuser.value | default "postgres" | quote }}
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.auth.existingSecret }}
-                  key: postgres-password
+                  name: {{ .Values.auth.existingSecret | default (include "htpg.fullname" .) }}
+                  key: {{ .Values.auth.superuserPassword.secretKey | default "postgres-password" }}
             - name: POSTGRES_DB
-              value: postgres
-
+              value: {{ .Values.auth.database.value | default "postgres" | quote }}
             - name: PGDATA
               value: {{ printf "%s/data" .Values.storage.dataMountPath | quote }}
             {{- range .Values.env }}
@@ -130,15 +129,14 @@ spec:
           imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
           env:
             - name: POSTGRES_USER
-              value: postgres
+              value: {{ .Values.auth.superuser.value | default "postgres" | quote }}
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.auth.existingSecret }}
-                  key: postgres-password
+                  name: {{ .Values.auth.existingSecret | default (include "htpg.fullname" .) }}
+                  key: {{ .Values.auth.superuserPassword.secretKey | default "postgres-password" }}
             - name: POSTGRES_DB
-              value: postgres
-
+              value: {{ .Values.auth.database.value | default "postgres" | quote }}
             # DATA_SOURCE_NAME for exporter
             {{- if and .Values.metrics.datasource.secret.name .Values.metrics.datasource.secret.key }}
             - name: DATA_SOURCE_NAME

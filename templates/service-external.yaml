@@ -1,0 +1,24 @@
+{{- if .Values.service.external.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "htpg.fullname" . }}-external
+  labels:
+    {{- include "htpg.labels" . | nindent 4 }}
+  {{- with .Values.service.external.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.external.type }}
+  {{- if .Values.service.external.loadBalancerIP }}
+  loadBalancerIP: {{ .Values.service.external.loadBalancerIP }}
+  {{- end }}
+  ports:
+    - name: tcp-postgres
+      port: {{ .Values.service.external.port | default 5432 }}
+      targetPort: tcp-postgres
+      protocol: TCP
+  selector:
+    {{- include "htpg.selectorLabels" . | nindent 4 }}
+{{- end }}
