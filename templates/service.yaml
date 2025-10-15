@@ -12,7 +12,7 @@ spec:
   type: {{ .Values.service.type }}
   ports:
     - port: {{ .Values.service.port }}
-      targetPort: tcp-postgres
+      targetPort: 5432
       protocol: TCP
       name: tcp-postgres
   selector:
